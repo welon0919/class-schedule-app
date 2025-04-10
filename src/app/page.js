@@ -1,95 +1,67 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+// app/page.jsx
+import DayChart from "@/components/DayChart";
+import { load } from "cheerio";
+import iconv from "iconv-lite";
 
-export default function Home() {
-  return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol>
-          <li>
-            Get started by editing <code>src/app/page.js</code>.
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+export const dynamic = "force-dynamic"; // 每次請求都重新抓
 
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.secondary}
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className={styles.footer}>
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+// 計算本週週一到週五的日期字串
+function getWeekdaysOfThisWeek() {
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 = Sunday
+    const diffToMonday = (dayOfWeek + 6) % 7;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - diffToMonday);
+
+    const weekdays = [];
+    for (let i = 0; i < 5; i++) {
+        const d = new Date(monday);
+        d.setDate(monday.getDate() + i);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        weekdays.push(`${yyyy}${mm}${dd}`);
+    }
+    return weekdays;
+}
+
+// 抓取並解析單日課表
+async function getDayClasses(dateString) {
+    const url = `${process.env.API_BASE_URL}/ann/schedule_s.asp?month=${dateString}&class_key=y11313`;
+    const res = await fetch(url, { next: { revalidate: 0 } });
+    if (!res.ok) {
+        throw new Error(`無法抓取 ${dateString} 的課表`);
+    }
+    const buf = await res.arrayBuffer();
+    // Big5 解碼
+    const html = iconv.decode(Buffer.from(buf), "big5");
+
+    // 用 cheerio 解析
+    const $ = load(html);
+    const rows = $(".style2").slice(0, 2).toArray(); // 取前兩列
+    const classes2D = rows.map((row) => {
+        // 取下一列的 td[1..4]
+        const tds = $(row).next().find("td").slice(1, 5).toArray();
+        return tds.map((td) => {
+            const b = $(td).find("b");
+            return b.length > 0 ? b.text() : "社團";
+        });
+    });
+
+    // 攤平成一維陣列
+    return [...classes2D[0], ...classes2D[1]];
+}
+
+export default async function Page() {
+    const weekdays = getWeekdaysOfThisWeek();
+    // 並行抓取五天資料
+    const daysClasses = await Promise.all(weekdays.map(getDayClasses));
+
+    return (
+        <main>
+            {daysClasses.map((classes, idx) => (
+                <DayChart key={idx} classes={classes} />
+            ))}
+        </main>
+    );
 }
