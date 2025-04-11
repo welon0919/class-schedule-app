@@ -23,7 +23,6 @@ export default function RootLayout({ children }) {
         <title>課表</title>
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
-        <h1>Y113 週課表</h1>
         {children}
       </body>
     </html>

@@ -59,9 +59,12 @@ export default async function Page() {
 
     return (
         <main>
-            {daysClasses.map((classes, idx) => (
-                <DayChart key={idx} classes={classes} />
-            ))}
+            <h1>Y113 週課表</h1>
+            <div className="chart-container">
+                {daysClasses.map((classes, idx) => (
+                    <DayChart key={idx} classes={classes} />
+                ))}
+            </div>
         </main>
     );
 }
