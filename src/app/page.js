@@ -44,7 +44,7 @@ async function getDayClasses(dateString) {
         const tds = $(row).next().find("td").slice(1, 5).toArray();
         return tds.map((td) => {
             const b = $(td).find("b");
-            return b.length > 0 ? b.text() : "社團";
+            return b.length > 0 ? b.text() : "⠀";
         });
     });
 
